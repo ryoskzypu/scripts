@@ -200,7 +200,11 @@ sub colorize_cb
         return $string if ($config{own_lines} eq "off") && not ($channel_color) && ( $config{alternate_color} eq "" );
 
         $color = weechat::color($config{own_lines_color});
-        $color = weechat::color("chat_nick_self") if ($config{own_lines_color} eq "");
+
+        # "chat_nick_self" colors are fixed (\03115) and cannot have the "keep attribute"
+        # code set, so translate it to weechat's colors
+        $color = weechat::color(weechat::config_string(weechat::config_get("weechat.color.chat_nick_self"))) if ($config{own_lines_color} eq "");
+
         $color = $channel_color if ($channel_color) && ($config{own_lines} eq "off");
 
         $color = get_alternate_color($buf_ptr,$alternate_last,$alternate_color1,$alternate_color2) if ( $config{alternate_color} ne "" ) &&
@@ -274,6 +278,19 @@ sub colorize_cb
             }
             }
     ######################################## inject colors and go!
+
+    # color doesn't have a "keep attribute", so inject its code to keep them
+    # when there's a reset color code (\031\034) in the line
+    my $keep_attr = "|";
+    if ($color !~ /\Q$keep_attr\E/) {
+        $color =~ s/
+                      \o{031}
+                      (?> [F*] | F@ | \*@)
+                      [*!\/_%.]?+
+                      \K
+                      (\d{2,5}+)
+                  /${keep_attr}$1/x;
+    }
 
     my $out = "";
     if ($action) {
